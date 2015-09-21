@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script type = "text/JavaScript" src = "jquery-2.1.0.min.js"></script>
+	<style type = "text/css">
+		body {
+			margin : 2px;
+			padding : 2px;
+		}
+		.canvas {
+			width : 1150px;
+			border : solid red 1px;
+			position : absolute;
+			top : 3px;
+			left : 3px;
+		}
+		#toolContainer {
+			position : fixed;
+			top : 0px;
+			right : 0px;
+			width : 170px;
+			padding : 5px 5px 0px 5px;
+			z-index : 2;
+			background-color : white;
+		}
+		#mapImgHover {
+			opacity : 0;
+		}
+		#layers_box {
+			border : solid red 1px;
+			padding : 0px 0px 10px 10px;
+			margin : 10px 10px 0px 0px;
+		}
+	</style>
+</head>
+<body>
+<div id = "toolContainer">
+	Upload Data <input type = "file" id = "fileUpload" onchange = "loadData()"/>
+	Set Contour Value
+	<select id = "contrValue" onchange = "changeContrValue()">
+		<option value = "45">45</option>
+		<option value = "50">50</option>
+		<option value = "55">55</option>
+		<option value = "60">60</option>
+		<option value = "65">65</option>
+		<option value = "70">70</option>
+	</select><br />
+	
+	Mode :
+	<select id = "modeSelect" onchange = "setMode()">
+		<option value = "plot">Plot</option>
+		<option value = "draw">Draw</option>
+	</select>
+	
+	<div id = "layers_box">
+		<h4>Layers</h4>
+		
+		<input type = "checkbox" name = "map" value = "map" class = "layers" id = "mapL" checked />Map 
+		<input type = "range" name = "mapOpacity" min = "0" max = "100" id = "mapOpacity" value = "100" onchange = "changeOpacity('map')"/><br />
+		
+		<input type = "checkbox" name = "data" value = "data" class = "layers" id = "dataL" checked />Data Points
+		<input type = "range" name = "mapOpacity" min = "0" max = "100" id = "dataOpacity" value = "100" onchange = "changeOpacity('data')"/><br />
+		
+		<input type = "checkbox" name = "contPts" value = "contPts" class = "layers" id = "contPtL" checked />Contour Points
+		<input type = "range" name = "mapOpacity" min = "0" max = "100" id = "contPtOpacity" value = "100" onchange = "changeOpacity('contPt')"/><br />
+		
+		<input type = "checkbox" name = "contrs" value = "contrs" class = "layers" id = "contrL" checked />Contours
+		<input type = "range" name = "mapOpacity" min = "0" max = "100" id = "contrOpacity" value = "100" onchange = "changeOpacity('contr')"/><br />
+	</div>
+	<br />
+	<button onclick = "saveImage()">Export Points</button><br />
+	<button onclick = "saveContours()">Export Contours</button><br />
+	<button onclick = "printData()">PrintData</button><br />
+</div>
+
+<p style = "display : none" id = "printContent"></p>
+
+<img src = "rkMap.bmp" id = "mapLayer" class = "canvas"/>
+<canvas id = "contPtLayer" height = "2896px" width = "2776px" class = "canvas" ></canvas>
+<canvas id = "contrLayer" height = "2896px" width = "2776px" class = "canvas" ></canvas>
+<canvas id = "dataLayer" height = "2896px" width = "2776px" class = "canvas" ></canvas>
+<canvas id = "dumLayer" height = "2896px" width = "2776px" class = "canvas" ></canvas>
+<img src = "rkMap.bmp" id = "mapImgHover" class = "canvas"/>
+
+<map name = "imageMap" id = "imageMap">
+	<!--area shape = "rect" coords = "100,100,200,200" href = "http://google.com" title = "boom"/-->
+</map>
+
+<script type="text/javascript">
+
+function dist( x1, y1, x2, y2){// this is the distance function
+		var distance = Math.sqrt((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2));
+		return distance;
+	}
+
+function lineAngle(x0, y0, x1, y1){// This function calculates the inclination angle of any given line
+		var angle;
+		
+		if(x1>x0){
+			if(y1>y0){//quadrant 1
+				angle = Math.atan((y1-y0)/(x1-x0));
+			}
+			else if(y1==y0){//on +ve x axis
+					angle = 0;
+			}
+			else{//quadrant 4
+				angle = (Math.atan((y1-y0)/(x1-x0)))+(2*Math.PI);
+			}
+		}
+		else if(x1==x0){
+			if(y1>y0){//on +ve y axis
+				angle = 0.5*Math.PI;
+			}
+			else if(y1==y0){
+				angle = null;
+			}
+			else{// on -ve y axis
+				angle = 1.5*Math.PI;
+			}
+		}
+		else{
+			if(y1>y0){//quadrant 2
+				angle = (1*Math.PI)+(Math.atan((y1-y0)/(x1-x0)));
+			}
+			else if(y1==y0){//on -ve x axis
+				angle = 1*Math.PI;
+			}
+			else{//quadrant 3
+				angle = (1*Math.PI)+(Math.atan((y1-y0)/(x1-x0)));
+			}
+		}
+			
+		return angle;
+	}
+
+function componentToHex(c) {
+    var hex = c.toString(16);
+    return hex.length == 1 ? "0" + hex : hex;
+}
+
+function HSLtoHex(h, s, l){
+	var r, g, b;
+
+    if(s == 0){
+        r = g = b = l; // achromatic
+    }else{
+        function hue2rgb(p, q, t){
+            if(t < 0) t += 1;
+            if(t > 1) t -= 1;
+            if(t < 1/6) return p + (q - p) * 6 * t;
+            if(t < 1/2) return q;
+            if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+        }
+
+        var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        var p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+    }
+   // return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+   return "#" + componentToHex(Math.round(r * 255)) + componentToHex(Math.round(g * 255)) + componentToHex(Math.round(b * 255));
+}	
+
+var data = new Array;
+var strdata = new Array;
+var penAIsDown = false;
+var penBIsDown = false;
+var str1,str2,str3;
+var contrValue = 45;
+var x1,y1,x2,y2, x3, y3;
+var contrPts = new Array;
+var printText = '';
+var contrList = document.getElementById('contrValue');
+var mode = 'plot';
+var modeSelect = document.getElementById('modeSelect');
+
+var mapImg = document.getElementById('mapLayer');
+
+var contPtCanvas = document.getElementById("contPtLayer");
+var Cpc = contPtCanvas.getContext("2d");
+Cpc.fillStyle = "white";
+Cpc.strokeStyle = "blue";
+Cpc.lineWidth = 4;
+
+var dumLayer = document.getElementById("dumLayer");
+var dc = dumLayer.getContext("2d");
+dc.fillStyle = "#24ff00";
+dc.strokeStyle = "white";
+dc.lineWidth = 4;
+
+var contrLayer = document.getElementById("contrLayer");
+var Cc = contrLayer.getContext("2d");
+Cc.fillStyle = "blue";
+Cc.strokeStyle = "blue";
+Cc.lineWidth = 3;
+
+var pointCanvas = document.getElementById("dataLayer");
+var pc = pointCanvas.getContext("2d");
+pc.fillStyle = "yellow";
+pc.strokeStyle = "red";
+pc.lineWidth = 4;
+pc.font = "bold 37px Helvetica";
+
+var ky = 215131.563796983;
+var kx = 186547.8566484554;
+var lat0 = 29.87348053;
+var lng0 = 77.8887749;
+
+function plot(str){// converts lat, long to pixel coordinates
+	var px = (data[str][1]-lng0)*kx;
+	var py = (lat0-data[str][0])*ky;
+	
+	pc.fillRect(px-10,py-10,20,20);
+	pc.beginPath();
+	pc.moveTo(px-10,py-10);
+	pc.lineTo(px+10,py+10);
+	pc.moveTo(px-10,py+10);
+	pc.lineTo(px+10,py-10);
+	pc.stroke();
+	
+	pc.lineWidth = 2.5;
+	pc.strokeStyle = "black";
+	pc.fillText(data[str][2],px,py);
+	pc.strokeText(data[str][2],px,py);
+	pc.lineWidth = 4;
+	pc.strokeStyle = "red";
+	
+	px = parseInt(px*1150/2776);
+	py = parseInt(py*1150/2776);
+	
+	$('<area shape = "rect" coords = "'
+		+(px-5)+','+(py-5)+','+(px+5)+','+(py+5)+'" title = "'+str+'" href = "javascript:ptClick(\''+str+'\')" id = "'+str+'" class = "ptArea"/>').appendTo('#imageMap');
+	//<area shape="rect" coords="302,1146,322,1166" title="B10" href="http://google.com">
+}
+
+function ptClick(str){ 
+	if(!penAIsDown && !penBIsDown){
+		penAIsDown = true;
+		str1 = str;
+		x1 = (data[str][1]-lng0)*kx;
+		y1 = (lat0-data[str][0])*ky;
+	}else if (penAIsDown && !penBIsDown){
+		penBIsDown = true;
+		str2 = str;
+	}else if (penAIsDown && penBIsDown){
+		penAIsDown = false;
+		penBIsDown = false;
+		str3 = str;
+		
+		dc.clearRect(0,0,contrLayer.width,contrLayer.height);
+		console.log(str1+', '+str2+', '+str3);
+		loadColors(str1,str2,str3);
+		loadColors(str2,str1,str3);
+		loadColors(str3,str2,str1);
+	}
+	
+}
+
+function setMode(){
+	mode = modeSelect.options[modeSelect.selectedIndex].value;
+}
+
+$('.canvas,.ptArea').mousemove(function(e){
+	if(penAIsDown){
+		x2 = (e.pageX - this.offsetLeft)*(2776/1150);
+		y2 = (e.pageY - this.offsetTop)*(2776/1150);
+		
+		dc.clearRect(0,0,contrLayer.width,contrLayer.height);
+		dc.beginPath();
+		dc.moveTo(x1,y1);
+		dc.lineTo(x2,y2);
+		dc.stroke();
+	}
+});
+
+function loadData() {
+		data = [];
+		strdata = [];
+		printText = ''
+		var input = document.getElementById('fileUpload');
+		if (input.files && input.files[0]) {
+			var reader = new FileReader();
+			reader.onload = function (e) {
+				//alert('reader loaded '+input.files[0].name);
+				var str = e.target.result;
+				
+				var k=0;
+				var point = new Array;
+				for(var i=0; i<str.length; i++){
+					if(str.charAt(i)=='\t'){
+						point.push(str.substring(k,i));
+						k=i+1;//moving the last word position
+					}
+					if(str.charAt(i)=='\n'){
+						point.push(str.substring(k,i));//adding a single word to the pint array
+						k=i+1;//moving the last word position
+						strdata.push(point);//adding the point array to the data array before going to the next line
+						point = [];//emptying the point array
+					}
+				}
+				
+				for(var i=0; i<strdata.length; i++){
+					data[String(strdata[i][0])] = new Array(parseFloat(strdata[i][1]), parseFloat(strdata[i][2]), parseFloat(strdata[i][3]));
+					plot(strdata[i][0]);
+				}
+				$('#mapImgHover').attr('usemap','#imageMap');
+			}
+			reader.readAsText(input.files[0]);
+		}
+	}
+
+$('.layers').click(function(){
+	var str = $(this).attr('id');
+	str = '#' + str + 'ayer';
+	
+	$(str).toggle();
+});
+
+function loadColors(str1, str2, str3){
+	var px = (data[str1][1]-lng0)*kx;
+	var py = (lat0-data[str1][0])*ky;
+	var lx1 = (data[str2][1]-lng0)*kx;
+	var ly1 = (lat0-data[str2][0])*ky;
+	var lx2 = (data[str3][1]-lng0)*kx;
+	var ly2 = (lat0-data[str3][0])*ky;
+	
+	var m1 = (ly2-ly1)/(lx2-lx1);
+	var m2;
+	var D1,D;
+	var diff = 0.01;
+	var sqSize = 4;
+	var hue;
+	if(lx2>lx1){
+		for(var x = lx1; x <= lx2 ; x=x+0.5){
+			var y = ly2 + (m1*(x-lx2));
+			D1 =((data[str2][2]*dist(x,y,lx2,ly2))+(data[str3][2]*dist(x,y,lx1,ly1)))/dist(lx1,ly1,lx2,ly2);
+			m2 = (y-py)/(x-px);
+			
+			if(px > x){
+				for(var xx = x; xx <= px; xx=xx+0.5){
+					var yy = y+(m2*(xx-x));
+					D = ((data[str1][2]*dist(xx,yy,x,y))+(D1*dist(xx,yy,px,py)))/dist(x,y,px,py);
+					
+					Cpc.fillRect(xx-0.5,yy-0.5,1,1);
+					for(var d = 45;d<80;d+=5){
+						if(D > d-diff && D < d+diff){
+							hue = ((D-20)/60)*0.6666;
+							Cc.fillStyle = HSLtoHex(hue,1,0.4);
+							Cc.fillRect(xx-(sqSize/2),yy-(sqSize/2),sqSize,sqSize);
+						}
+					}
+				}
+			}else{console.log(x);
+				for(var xx = x; xx >= px; xx=xx-0.5){
+					var yy = y+(m2*(xx-x));
+					D = ((data[str1][2]*dist(xx,yy,x,y))+(D1*dist(xx,yy,px,py)))/dist(x,y,px,py);
+					
+					Cpc.fillRect(xx-0.5,yy-0.5,1,1);
+					for(var d = 45;d<80;d+=5){
+						if(D > d-diff && D < d+diff){
+							hue = ((D-20)/60)*0.6666;
+							Cc.fillStyle = HSLtoHex(hue,1,0.4);
+							Cc.fillRect(xx-(sqSize/2),yy-(sqSize/2),sqSize,sqSize);
+						}
+					}
+				}
+			}
+		}
+	}else{
+		for(var x = lx1; x >= lx2 ; x=x-0.5){
+			var y = ly2 + (m1*(x-lx2));
+			D1 =((data[str2][2]*dist(x,y,lx2,ly2))+(data[str3][2]*dist(x,y,lx1,ly1)))/dist(lx1,ly1,lx2,ly2);
+			m2 = (y-py)/(x-px);
+			
+			if(px > x){
+				for(var xx = x; xx <= px; xx=xx+0.5){
+					var yy = y+(m2*(xx-x));
+					D = ((data[str1][2]*dist(xx,yy,x,y))+(D1*dist(xx,yy,px,py)))/dist(x,y,px,py);
+					
+					Cpc.fillRect(xx-0.5,yy-0.5,1,1);
+					for(var d = 45;d<80;d+=5){
+						if(D > d-diff && D < d+diff){
+							hue = ((D-20)/60)*0.6666;
+							Cc.fillStyle = HSLtoHex(hue,1,0.4);
+							Cc.fillRect(xx-(sqSize/2),yy-(sqSize/2),sqSize,sqSize);
+						}
+					}
+				}
+			}else{console.log(x);
+				for(var xx = x; xx >= px; xx=xx-0.5){
+					var yy = y+(m2*(xx-x));
+					D = ((data[str1][2]*dist(xx,yy,x,y))+(D1*dist(xx,yy,px,py)))/dist(x,y,px,py);
+					
+					Cpc.fillRect(xx-0.5,yy-0.5,1,1);
+					for(var d = 45;d<80;d+=5){
+						if(D > d-diff && D < d+diff){
+							hue = ((D-20)/60)*0.6666;
+							Cc.fillStyle = HSLtoHex(hue,1,0.4);
+							Cc.fillRect(xx-(sqSize/2),yy-(sqSize/2),sqSize,sqSize);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+function loadContrPt(str1, str2, D){
+	var px1 = (data[str1][1]-lng0)*kx;
+	var py1 = (lat0-data[str1][0])*ky;
+	
+	var px2 = (data[str2][1]-lng0)*kx;
+	var py2 = (lat0-data[str2][0])*ky;
+	
+	var ang = lineAngle(px1,py1,px2,py2);
+	var R = dist(px1,py1,px2,py2);//console.log(R);
+	var D1 = data[str1][2];
+	var D2 = data[str2][2];
+	
+	var pn = (D1-D)/20;
+	var pd = (D1-D2)/20;
+	
+	var r = ((Math.pow(10,pn)-1)/(Math.pow(10,pd)-1))*R;
+	
+	var px = px1 + r*(Math.cos(ang));
+	var py = py1 + r*(Math.sin(ang));
+	
+	Cpc.fillRect(px-10,py-10,20,20);
+	Cpc.beginPath();
+	Cpc.moveTo(px-10,py-10);
+	Cpc.lineTo(px+10,py+10);
+	Cpc.moveTo(px-10,py+10);
+	Cpc.lineTo(px+10,py-10);
+	Cpc.stroke();
+	
+	var str = str1+'/'+str2+'/'+String(D);
+	contrPts[str] = new Array(px,py);
+	//$('<p>'+str+'	'+px+'	'+py+'</p>').appendTo('#printContent');
+	printText = printText + '<p>'+str+'	'+px+'	'+py+'</p>';
+	
+	px = parseInt(px*1150/2776);
+	py = parseInt(py*1150/2776);
+	
+	$('<area shape = "rect" coords = "'
+		+(px-5)+','+(py-5)+','+(px+5)+','+(py+5)+'" title = "'+str+'" href = "javascript:ptClick(\''+str+'\')" id = "'+str+'" class = "contrptArea"/>').appendTo('#imageMap');
+}
+
+function saveImage(){
+	window.win = open(contPtCanvas.toDataURL('image/png'));
+}
+
+function saveContours(){
+	window.win = open(contrLayer.toDataURL('image/png'));
+}
+
+function printData(){
+        var mywindow = window.open('', 'Printed Data', 'height=500,width=700');
+        mywindow.document.write('<html><head><title>my div</title>');
+        mywindow.document.write('</head><body >');
+        mywindow.document.write(printText);
+        mywindow.document.write('</body></html>');
+
+        return true;
+}
+
+function changeContrValue(){
+	contrValue = parseInt(contrList.options[contrList.selectedIndex].value);
+}
+
+function changeOpacity(str){
+	var str2 = '#'+str+'Layer';
+	var str3 = str+'Opacity';
+	$(str2).css('opacity',parseFloat(document.getElementById(str3).value/100));
+}
+
+function press_btn(e){ alert('yo');
+		if(e.keyCode == 27){
+			penAIsDown = false;
+			penBIsDown = false;
+			dc.clearRect(0,0,contrLayer.width,contrLayer.height);
+			alert('yo');
+		}
+	}
+</script>
+
+</body>
+</html>
