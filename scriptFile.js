@@ -1,104 +1,4 @@
 
-//function Library
-function dist( x1, y1, x2, y2){// this is the distance function
-		var distance = Math.sqrt((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2));
-		return distance;
-	}
-
-function lineAngle(x0, y0, x1, y1){// This function calculates the inclination angle of any given line with positive x, placing the origin at (x0,y0)
-		var angle;
-		
-		if(x1>x0){
-			if(y1>y0){//quadrant 1
-				angle = Math.atan((y1-y0)/(x1-x0));
-			}
-			else if(y1==y0){//on +ve x axis
-					angle = 0;
-			}
-			else{//quadrant 4
-				angle = (Math.atan((y1-y0)/(x1-x0)))+(2*Math.PI);
-			}
-		}
-		else if(x1==x0){
-			if(y1>y0){//on +ve y axis
-				angle = 0.5*Math.PI;
-			}
-			else if(y1==y0){
-				angle = null;
-			}
-			else{// on -ve y axis
-				angle = 1.5*Math.PI;
-			}
-		}
-		else{
-			if(y1>y0){//quadrant 2
-				angle = (1*Math.PI)+(Math.atan((y1-y0)/(x1-x0)));
-			}
-			else if(y1==y0){//on -ve x axis
-				angle = 1*Math.PI;
-			}
-			else{//quadrant 3
-				angle = (1*Math.PI)+(Math.atan((y1-y0)/(x1-x0)));
-			}
-		}
-			
-		return angle;
-	}
-
-function componentToHex(c) {
-    var hex = c.toString(16);
-    return hex.length == 1 ? "0" + hex : hex;
-}
-
-function HSLtoHex(h, s, l){
-	var r, g, b;
-
-    if(s == 0){
-        r = g = b = l; // achromatic
-    }else{
-        function hue2rgb(p, q, t){
-            if(t < 0) t += 1;
-            if(t > 1) t -= 1;
-            if(t < 1/6) return p + (q - p) * 6 * t;
-            if(t < 1/2) return q;
-            if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-            return p;
-        }
-
-        var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-        var p = 2 * l - q;
-        r = hue2rgb(p, q, h + 1/3);
-        g = hue2rgb(p, q, h);
-        b = hue2rgb(p, q, h - 1/3);
-    }
-   // return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
-   return "#" + componentToHex(Math.round(r * 255)) + componentToHex(Math.round(g * 255)) + componentToHex(Math.round(b * 255));
-}
-
-function mod(vec){//gives the modulus of a vector
-	var r = Math.sqrt((vec[0]*vec[0])+(vec[1]*vec[1]));
-	return r;
-}
-
-function dot(vec1,vec2){//gives the dot product of two vectors
-	var d = (vec1[0]*vec2[0])+(vec1[1]*vec2[1]);
-	return d;
-}
-
-function vSum(vec1,vec2){//returns the sum of two vectors
-	var vSum = [];
-	vSum[0] = vec1[0]+vec2[0];
-	vSum[1] = vec1[1]+vec2[1];
-	return vSum;
-}
-
-function vDiff(vec1,vec2){//returns vector1-vector2 in that order
-	var vDiff = [];
-	vDiff[0] = vec1[0] - vec2[0];
-	vDiff[1] = vec1[1] - vec2[1];
-	return vDiff;
-}
-
 function renderAnchors(){//renders all the anchors in the anchor array
 	bc.clearRect(0,0,baseCanvas.width,baseCanvas.height);
 	for(var i in anchor){//this is for point anchors
@@ -282,6 +182,8 @@ function moveTableFrom(x1,y1,l,w){//travels from a given point towards the decre
 	var minUSum=dist(0,0,uSum(x,y)[0],uSum(x,y)[1]);//using the distance function to calculate
 	var iter = 0;
 	Ic.clearRect(0,0,itemCanvas.width,itemCanvas.height);
+	
+	var posChange = [];
 	function move(){setTimeout(function(){//console.log(x,y);
 		if(minUSum > dist(0,0,uSum(x,y)[0],uSum(x,y)[1])){
 			minUSum = dist(0,0,uSum(x,y)[0],uSum(x,y)[1]);
@@ -299,9 +201,11 @@ function moveTableFrom(x1,y1,l,w){//travels from a given point towards the decre
 		ic.moveTo(x,y);
 		ic.lineTo(x+stp*uSum(x,y)[0],y+stp*uSum(x,y)[1]);
 		ic.stroke();
-	
-		x += stp*uSum(x,y)[0];
-		y += stp*uSum(x,y)[1];
+		
+		var uS = uSum(x,y);
+		var posPrev = [x,y];
+		x += stp*uS[0];
+		y += stp*uS[1];
 		//checking that all the four corners lie inside the room
 		uVec[0] = uSum(x,y)[0]/dist(0,0,uSum(x,y)[0],uSum(x,y)[1]);
 		uVec[1] = uSum(x,y)[1]/dist(0,0,uSum(x,y)[0],uSum(x,y)[1]);
@@ -335,10 +239,21 @@ function moveTableFrom(x1,y1,l,w){//travels from a given point towards the decre
 		if(minY < 0){
 			y -= minY;
 		}
+		
+		var posNew = [x,y];
+		var pChange = vDiff(posNew,posPrev);
+		if(posChange.length > 9){
+			posChange.shift();
+		}
+		posChange.push(pChange);
+		var netPosChange = [0,0];
+		for(var sn = 0; sn < posChange.length; sn++){
+			netPosChange = vSum(netPosChange, posChange[sn])
+		}
 		//console.log(maxX,maxY,minX,minY,x,y);
 		iter++;
-		if(iter < itNum){move();}else if(iter == itNum){console.log('done');}
-	},30*((itNum-iter)/itNum));}//this is the number of milliseconds between consecutive frames of animation. I am trying to speed up the 
+		if(iter < itNum && mod(netPosChange) > 0.02){move();}else {console.log('done after '+iter+' steps');}
+	},15);}//this is the number of milliseconds between consecutive frames of animation. I am trying to speed up the 
 	move();				//as it progresses because the velocity of the table is decreasing.
 }
 
