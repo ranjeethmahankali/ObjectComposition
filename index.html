@@ -15,6 +15,11 @@
 			right : 5px;
 			top : 3px;
 		}
+		#helpText{
+			border : solid gray 1px;
+			width : 250px;
+			margin-right : 50px;
+		}
 	</style>
 </head>
 
@@ -24,9 +29,13 @@
 	<canvas id = "itemCanvas" class = "canvas" height = "300px" width = "500px"></canvas>
 	
 	<div id = "toolContainer">
-		<input type = "text" id = "anchorName" name = "anchorName" value = "anchor"/><br />
-		<input type = "radio" name = "tool" value = "placeAnchor" id = "placeAnchor"/>Place Anchor<br />
-		<input type = "radio" name = "tool" value = "none" id = "none"/>None<br />
+		Anchor Name: <input type = "text" id = "anchorName" name = "anchorName" value = "anchor"/><br />
+		<input type = "radio" name = "tool" value = "placeAnchor" id = "placeAnchor" onchange="loadTool()"/>Place Anchor<br />
+		<input type = "radio" name = "tool" value = "placeTable" id = "placeTable" onchange="loadTool()"/>Place Table<br />
+		
+		<p id = "helpText">
+			Select one of the above actions.
+		</p>
 	</div>
 	
 	<map name = "testMap">

@@ -64,12 +64,12 @@ var anchor = [];
 anchor['switchBoard'] = [440,300,1];
 anchor['switchBoard2'] = [240,300,1];
 
-
 var lAnchor = [];
 lAnchor['window'] = [500,100,500,235,1];
 
 var noTool = document.getElementById('none');
 var placeAnchor = document.getElementById('placeAnchor');
+var placeTable = document.getElementById('placeTable');
 var anchorName = document.getElementById('anchorName');
 
 function addAnchor(str,x,y,n){
@@ -342,5 +342,19 @@ $('.canvas').click(function(e){
 		mouse1Y = (e.pageY - this.offsetTop)/2;
 		
 		addAnchor(anchorName.value,mouse1X,mouse1Y,1);
+	}else if(placeTable.checked){
+		mouse1X = (e.pageX - this.offsetLeft)/2;
+		mouse1Y = (e.pageY - this.offsetTop)/2;
+		
+		moveTableFrom(mouse1X,mouse1Y,120,60);
 	}
 });
+
+function loadTool(){
+	var currentTool = $('input[name=tool]:checked').val();
+	if(currentTool == 'placeAnchor'){
+		$('#helpText').text('Click anywhere on the canvas to place a new anchor, every anchor should have a unique name.');
+	}else if(currentTool == 'placeTable'){
+		$('#helpText').text('Click anywhere on the canvas to place the table');
+	}
+}
